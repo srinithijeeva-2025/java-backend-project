@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <nav class="navbar">
+            <h2>User Management System</h2>
+            <button onclick="logout()" class="btn btn-logout">Logout</button>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div id="flashMessage" class="flash-message" style="display:none;"></div>
+        <div class="dashboard-box">
+            <div id="userInfo"></div>
+            
+            <div class="button-group">
+                <button onclick="viewDashboard()" class="btn">View Dashboard</button>
+                <button id="addUserBtn" onclick="navigateTo('/public/addUser.html')" class="btn btn-admin" style="display:none;">Add User</button>
+                <button id="editUserBtn" onclick="navigateTo('/public/editUser.html')" class="btn btn-admin" style="display:none;">Edit User</button>
+                <button id="deleteUserBtn" onclick="navigateTo('/public/deleteUser.html')" class="btn btn-admin" style="display:none;">Delete User</button>
+            </div>
+
+            <div id="userList"></div>
+        </div>
+    </div>
+
+    <script>
+        // Load user info and show appropriate buttons
+        function loadUserInfo() {
+            const user = JSON.parse(sessionStorage.getItem('user'));
+            if (!user) {
+                window.location.href = '/public/login.html';
+                return;
+            }
+            
+            const userInfo = document.getElementById('userInfo');
+            userInfo.innerHTML = `<h2>Hello, ${user.username} (Role: ${user.role})</h2>`;
+            
+            if (user.role === 'ADMIN') {
+                document.getElementById('addUserBtn').style.display = 'block';
+                document.getElementById('editUserBtn').style.display = 'block';
+                document.getElementById('deleteUserBtn').style.display = 'block';
+            }
+        }
+
+        function viewDashboard() {
+            const user = JSON.parse(sessionStorage.getItem('user'));
+            if (!user) {
+                window.location.href = '/public/login.html';
+                return;
+            }
+
+            // Fetch users from server and render
+            fetch('/users')
+                .then(resp => {
+                    if (!resp.ok) throw new Error('Failed to fetch users');
+                    return resp.json();
+                })
+                .then(users => {
+                    const container = document.getElementById('userList');
+                    if (!users || users.length === 0) {
+                        container.innerHTML = '<p>No users found.</p>';
+                        return;
+                    }
+
+                    let html = '<table class="user-table"><thead><tr><th>ID</th><th>Username</th><th>Role</th></tr></thead><tbody>';
+                    users.forEach(u => {
+                        html += `<tr><td>${u.id}</td><td>${u.username}</td><td>${u.role}</td></tr>`;
+                    });
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                })
+                .catch(err => {
+                    const container = document.getElementById('userList');
+                    container.innerHTML = '<p>Error loading users.</p>';
+                    console.error(err);
+                });
+        }
+
+        // Show flash message from query param (if present) then remove it from URL
+        function showFlashFromQuery() {
+            const params = new URLSearchParams(window.location.search);
+            const msg = params.get('flash');
+            if (!msg) return;
+            try {
+                const decoded = decodeURIComponent(msg);
+                const flashEl = document.getElementById('flashMessage');
+                flashEl.innerHTML = `<div class="msg">${escapeHtml(decoded)}</div><button class="dismiss" aria-label="Dismiss flash">✕</button>`;
+                flashEl.style.display = 'flex';
+                // wire up dismiss button
+                const btn = flashEl.querySelector('.dismiss');
+                if (btn) btn.addEventListener('click', () => { flashEl.style.display = 'none'; });
+                // remove param from URL without reloading
+                params.delete('flash');
+                const newSearch = params.toString();
+                const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '');
+                history.replaceState({}, '', newUrl);
+                // auto-hide after 4 seconds
+                setTimeout(() => { flashEl.style.display = 'none'; }, 4000);
+            } catch (e) {
+                console.error('Invalid flash message', e);
+            }
+        }
+
+        // small helper to avoid injecting raw HTML
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function logout() {
+            sessionStorage.clear();
+            window.location.href = '/public/login.html';
+        }
+
+        function navigateTo(page) {
+            window.location.href = page;
+        }
+
+        window.onload = function() { loadUserInfo(); showFlashFromQuery(); };
+    </script>
+</body>
+</html>
